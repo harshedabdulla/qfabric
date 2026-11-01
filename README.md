@@ -255,11 +255,13 @@ cd blockchain
 
 ```bash
 cd blockchain
-./scripts/deploy-chaincode.sh           # version 1.0, sequence 1; runs unit tests first
-./scripts/deploy-chaincode.sh 1.1 2     # upgrade
+./scripts/deploy-chaincode.sh           # version 1.0, sequence 1; runs unit tests first; no-op if deployed
+./scripts/deploy-chaincode.sh upgrade   # redeploy changed chaincode (next sequence)
 ```
 
 ## 16. Running the integrated demo
+
+**Presenter runbook with every command and talking points: [docs/DEMO.md](docs/DEMO.md).**
 
 ```bash
 ./scripts/run-demo.sh                   # real crypto service in Docker + live Fabric

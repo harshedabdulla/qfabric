@@ -42,3 +42,37 @@ ensure_fabric_samples() {
     ./install-fabric.sh --fabric-version "$FABRIC_VERSION" --ca-version "$FABRIC_CA_VERSION" docker samples binary
   )
 }
+
+network_running() {
+  docker ps --format '{{.Names}}' | grep -q '^peer0.org1.example.com$'
+}
+
+# Run a `peer` CLI command as org 1 or 2 (subshell: does not leak env).
+# Usage: as_peer 1 peer channel list
+as_peer() {
+  local org="$1"; shift
+  (
+    cd "$TEST_NETWORK_DIR"
+    export PATH="$FABRIC_SAMPLES_DIR/bin:$PATH" FABRIC_CFG_PATH="$FABRIC_SAMPLES_DIR/config" VERBOSE=false
+    set +u  # fabric-samples envVar.sh is not nounset-safe
+    # shellcheck disable=SC1091
+    . scripts/envVar.sh >/dev/null 2>&1
+    setGlobals "$org" >/dev/null 2>&1
+    "$@"
+  )
+}
+
+channel_joined() {
+  as_peer 1 peer channel list 2>/dev/null | grep -qx "$CHANNEL_NAME"
+}
+
+# Prints the committed chaincode sequence, or nothing if not committed.
+committed_sequence() {
+  as_peer 1 peer lifecycle chaincode querycommitted -C "$CHANNEL_NAME" -n "$CHAINCODE_NAME" 2>/dev/null \
+    | sed -n 's/.*Sequence: \([0-9]*\),.*/\1/p'
+}
+
+committed_version() {
+  as_peer 1 peer lifecycle chaincode querycommitted -C "$CHANNEL_NAME" -n "$CHAINCODE_NAME" 2>/dev/null \
+    | sed -n 's/.*Version: \([^,]*\),.*/\1/p'
+}

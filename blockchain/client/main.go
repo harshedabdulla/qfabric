@@ -8,6 +8,7 @@
 //	QFABRIC_ORG=OrgA go run ./client transfer -to OrgB -file doc.txt [-eve [-intercept 0.3]] [-noise 0.02] [-qubits 2048] [-tx qfabric-tx-001]
 //	go run ./client get qfabric-tx-001
 //	go run ./client list
+//	go run ./client org OrgA
 //	go run ./client verify qfabric-tx-001
 package main
 
@@ -39,7 +40,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: client <health|register|transfer|get|list|verify> [args]")
+	fmt.Fprintln(os.Stderr, "usage: client <health|register|org|transfer|get|list|verify> [args]")
 }
 
 func run(cmd string, args []string) error {
@@ -76,6 +77,8 @@ func run(cmd string, args []string) error {
 		return withID(args, func(id string) ([]byte, error) { return getTransaction(contract, id) })
 	case "list":
 		return printRaw(getAllTransactions(contract))
+	case "org":
+		return withID(args, func(id string) ([]byte, error) { return getOrganization(contract, id) })
 	case "verify":
 		return withID(args, func(id string) ([]byte, error) { return verifyTransactionRecord(contract, id) })
 	default:
@@ -138,7 +141,7 @@ func cmdTransfer(ctx context.Context, cfg *Config, crypto *integration.CryptoCli
 
 func withID(args []string, fn func(string) ([]byte, error)) error {
 	if len(args) != 1 {
-		return errors.New("expected exactly one transaction id")
+		return errors.New("expected exactly one id argument")
 	}
 	return printRaw(fn(args[0]))
 }

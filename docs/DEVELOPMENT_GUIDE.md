@@ -51,7 +51,7 @@ cd blockchain
 go test ./...                            # client + contract tests
 (cd chaincode/qfabric-audit && go test ./...)
 ./scripts/start-network.sh               # Fabric up + channel
-./scripts/deploy-chaincode.sh            # or: deploy-chaincode.sh 1.1 2 to upgrade
+./scripts/deploy-chaincode.sh            # re-run is a no-op; after code changes: deploy-chaincode.sh upgrade
 go run ./client list
 ./scripts/stop-network.sh
 ```
