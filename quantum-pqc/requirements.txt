@@ -1,0 +1,25 @@
+# QFabric Quantum/PQC module dependencies.
+# Recommended interpreter: Python 3.12 (Qiskit / Aer wheels lag behind the newest CPython).
+
+# --- Quantum simulation (BB84) ---
+qiskit>=2.2,<3
+qiskit-aer>=0.17,<0.19
+numpy>=1.26
+
+# --- Post-quantum signatures (ML-DSA-65, FIPS 204) ---
+# Python wrapper for liboqs. Keep the C library (liboqs) on the same minor
+# version: 0.16.x. See quantum-pqc/README.md "Installing liboqs".
+liboqs-python~=0.16.0
+
+# --- Symmetric crypto, KDF, compression ---
+cryptography>=44      # AES-256-GCM, HKDF-SHA-256, ECDSA baseline for benchmarks
+zstandard>=0.23       # gzip comes from the standard library
+
+# --- API ---
+fastapi>=0.115
+uvicorn[standard]>=0.32
+pydantic>=2.9,<3
+
+# --- Testing ---
+pytest>=8.3
+httpx2>=2.16           # transport for fastapi.testclient (Starlette deprecates httpx)

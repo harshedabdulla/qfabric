@@ -1,0 +1,26 @@
+# Runs the Quantum/PQC service. The Fabric network is managed separately by
+# blockchain/scripts/*.sh (it uses the fabric-samples test-network compose
+# files), because Fabric needs its own crypto material and channel setup.
+#
+#   docker compose up --build -d crypto
+#   curl http://localhost:8000/api/v1/health
+services:
+  crypto:
+    build:
+      context: ./quantum-pqc
+    image: qfabric-quantum-pqc:dev
+    container_name: qfabric-crypto
+    ports:
+      - "${QFABRIC_API_PORT:-8000}:8000"
+    environment:
+      QFABRIC_QBER_THRESHOLD: ${QFABRIC_QBER_THRESHOLD:-0.11}
+      QFABRIC_MAX_DOCUMENT_BYTES: ${QFABRIC_MAX_DOCUMENT_BYTES:-10485760}
+      QFABRIC_LOG_LEVEL: ${QFABRIC_LOG_LEVEL:-INFO}
+    volumes:
+      # ML-DSA secret keys persist here across restarts. Named volume, not a
+      # bind mount, so keys never land in the repository tree.
+      - qfabric-keystore:/data/keystore
+    restart: unless-stopped
+
+volumes:
+  qfabric-keystore:

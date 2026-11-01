@@ -1,0 +1,14 @@
+{
+  "sender": "OrgA",
+  "receiver": "OrgB",
+  "document": "UFVSQ0hBU0UgT1JERVIgUE8tMjAyNi0wMDQyCkJ1eWVyOiBPcmdBIChNYW51ZmFjdHVyZXIpClN1cHBsaWVyOiBPcmdCCkl0ZW06IFRpdGFuaXVtIGZhc3RlbmVycywgZ3JhZGUgNSwgcXR5IDUwMDAKVW5pdCBwcmljZTogMC40MiBVU0QKRGVsaXZlcnk6IDIwMjYtMTItMTUK",
+  "filename": "purchase-order-PO-2026-0042.txt",
+  "compression": "zstd",
+  "numQubits": 2048,
+  "sampleFraction": 0.25,
+  "channelErrorRate": 0.02,
+  "simulateEavesdropper": false,
+  "interceptionRate": 1.0,
+  "seed": 42,
+  "includeCiphertext": false
+}
