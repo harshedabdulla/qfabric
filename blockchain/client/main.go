@@ -10,6 +10,7 @@
 //	go run ./client list
 //	go run ./client org OrgA
 //	go run ./client verify qfabric-tx-001
+//	go run ./client serve [-addr 127.0.0.1:8080]     demo dashboard
 package main
 
 import (
@@ -40,10 +41,13 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: client <health|register|org|transfer|get|list|verify> [args]")
+	fmt.Fprintln(os.Stderr, "usage: client <health|register|org|transfer|get|list|verify|serve> [args]")
 }
 
 func run(cmd string, args []string) error {
+	if cmd == "serve" {
+		return cmdServe(args)
+	}
 	cfg, err := loadConfig()
 	if err != nil {
 		return err

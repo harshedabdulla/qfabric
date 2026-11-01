@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QFabric Console</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #151b23; --panel-2: #1b222c; --line: #2a3340;
+    --text: #e6edf3; --muted: #8b98a8; --accent: #7aa2ff; --quantum: #b48cff;
+    --ok: #3fb950; --ok-bg: rgba(63,185,80,.12); --bad: #f85149; --bad-bg: rgba(248,81,73,.12);
+    --warn: #d29922; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 var(--sans); }
+  header { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 14px 24px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 2; }
+  .brand { font-weight: 700; font-size: 18px; letter-spacing: .2px; }
+  .brand span { color: var(--quantum); }
+  .tag { color: var(--muted); font-size: 12px; }
+  .pills { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+  .pill { font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+  .pill.ok { color: var(--ok); border-color: rgba(63,185,80,.4); }
+  .pill.bad { color: var(--bad); border-color: rgba(248,81,73,.4); }
+  main { max-width: 1240px; margin: 0 auto; padding: 24px 16px 64px; display: grid; gap: 20px; grid-template-columns: 380px 1fr; }
+  @media (max-width: 960px) { main { grid-template-columns: 1fr; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; min-width: 0; }
+  section.wide { grid-column: 1 / -1; }
+  h2 { margin: 0 0 4px; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+  .sub { color: var(--muted); font-size: 12px; margin: 0 0 14px; }
+  .orgs { display: grid; gap: 10px; }
+  .org { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; }
+  .org b { font-size: 15px; }
+  .org .meta { color: var(--muted); font-size: 12px; grid-column: 1 / -1; }
+  .mono { font-family: var(--mono); font-size: 12px; word-break: break-all; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 12px 0 4px; }
+  select, textarea, input[type=text] { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 8px; font: inherit; }
+  textarea { font-family: var(--mono); font-size: 12px; min-height: 110px; resize: vertical; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .range-val { float: right; font-family: var(--mono); color: var(--text); }
+  button { background: var(--accent); color: #0b1020; border: 0; border-radius: 6px; padding: 8px 14px; font: 600 13px var(--sans); cursor: pointer; }
+  button.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
+  button.ghost:hover { border-color: var(--accent); }
+  button.danger { background: transparent; color: var(--bad); border: 1px solid rgba(248,81,73,.45); }
+  button:disabled { opacity: .5; cursor: wait; }
+  .presets { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
+  .presets button { padding: 5px 10px; font-size: 12px; }
+  .toggle { display: flex; align-items: center; gap: 8px; margin-top: 14px; color: var(--text); font-size: 13px; }
+  .toggle input { accent-color: var(--bad); width: 16px; height: 16px; }
+  .send { width: 100%; margin-top: 16px; padding: 11px; font-size: 14px; }
+  .empty { color: var(--muted); text-align: center; padding: 40px 10px; border: 1px dashed var(--line); border-radius: 8px; }
+  .pipeline { display: grid; gap: 8px; }
+  .stage { display: grid; grid-template-columns: 28px 1fr; gap: 12px; padding: 12px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--line); opacity: .35; transition: opacity .25s, border-color .25s; }
+  .stage.done { opacity: 1; }
+  .stage.fail { opacity: 1; border-color: rgba(248,81,73,.5); }
+  .stage.skip { opacity: .45; }
+  .dot { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font: 700 12px var(--mono); background: var(--line); color: var(--muted); }
+  .stage.done .dot { background: var(--ok-bg); color: var(--ok); }
+  .stage.fail .dot { background: var(--bad-bg); color: var(--bad); }
+  .stage.running .dot { animation: pulse 1s infinite; background: rgba(180,140,255,.2); color: var(--quantum); }
+  @keyframes pulse { 50% { opacity: .4; } }
+  .stage h3 { margin: 0; font-size: 14px; }
+  .stage p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+  .kv { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 6px; font-size: 12px; }
+  .kv span { color: var(--muted); }
+  .kv b { font-family: var(--mono); font-weight: 500; color: var(--text); }
+  .gauge { position: relative; height: 10px; background: var(--bg); border-radius: 5px; margin: 10px 0 4px; overflow: visible; border: 1px solid var(--line); }
+  .gauge .fill { position: absolute; inset: 0 auto 0 0; border-radius: 5px; background: var(--ok); transition: width .6s; }
+  .gauge .fill.over { background: var(--bad); }
+  .gauge .thr { position: absolute; top: -5px; bottom: -5px; width: 2px; background: var(--warn); }
+  .gauge-labels { display: flex; justify-content: space-between; font: 11px var(--mono); color: var(--muted); }
+  .verdict { margin-top: 4px; padding: 14px; border-radius: 8px; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  .verdict.ok { background: var(--ok-bg); border: 1px solid rgba(63,185,80,.4); }
+  .verdict.bad { background: var(--bad-bg); border: 1px solid rgba(248,81,73,.4); }
+  .verdict .big { font: 700 20px var(--mono); }
+  .verdict.ok .big { color: var(--ok); } .verdict.bad .big { color: var(--bad); }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 4px; font: 600 11px var(--mono); }
+  .badge.ok { background: var(--ok-bg); color: var(--ok); } .badge.bad { background: var(--bad-bg); color: var(--bad); }
+  .reason { display: inline-block; margin: 2px 4px 0 0; padding: 1px 6px; border-radius: 4px; background: var(--bg); border: 1px solid var(--line); font: 11px var(--mono); color: var(--warn); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: var(--muted); font-weight: 500; font-size: 12px; padding: 8px; border-bottom: 1px solid var(--line); }
+  td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td .actions { display: flex; gap: 6px; justify-content: flex-end; }
+  td .actions button { padding: 4px 9px; font-size: 12px; }
+  .table-wrap { overflow-x: auto; }
+  .detail { margin-top: 14px; display: grid; gap: 8px; }
+  .check { display: grid; grid-template-columns: 22px 1fr; gap: 8px; padding: 10px 12px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; }
+  .check .ic { font: 700 14px var(--mono); }
+  .check .ic.ok { color: var(--ok); } .check .ic.bad { color: var(--bad); }
+  .check p { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+  .error { color: var(--bad); font-family: var(--mono); font-size: 12px; white-space: pre-wrap; margin-top: 10px; }
+  .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .toolbar .sub { margin: 0; }
+  .toolbar button { margin-left: auto; }
+  footer { grid-column: 1 / -1; color: var(--muted); font-size: 12px; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">Q<span>Fabric</span></div>
+  <div class="tag">Quantum-safe document exchange with an auditable ledger</div>
+  <div class="pills" id="pills"><span class="pill">connecting…</span></div>
+</header>
+
+<main>
+  <section>
+    <h2>Organizations</h2>
+    <p class="sub">ML-DSA-65 public keys anchored on Hyperledger Fabric, bound to each org's MSP.</p>
+    <div class="orgs" id="orgs"></div>
+
+    <h2 style="margin-top:22px">Secure transfer</h2>
+    <p class="sub">BB84 key exchange on Qiskit Aer, AES-256-GCM, ML-DSA-65 signed audit manifest.</p>
+    <div class="presets">
+      <button class="ghost" data-preset="honest">Honest channel</button>
+      <button class="ghost" data-preset="eve">Eavesdropper</button>
+      <button class="ghost" data-preset="stealthy">Stealthy Eve 30%</button>
+    </div>
+    <div class="row">
+      <div><label for="from">From</label><select id="from"><option>OrgA</option><option>OrgB</option></select></div>
+      <div><label for="to">To</label><select id="to"><option>OrgB</option><option>OrgA</option></select></div>
+    </div>
+    <label for="doc">Confidential document</label>
+    <textarea id="doc">CONFIDENTIAL PURCHASE ORDER PO-2026-0042
+Buyer: OrgA (Manufacturer)
+Supplier: OrgB
+Item: Titanium fasteners, grade 5, qty 5000
+Unit price: 0.42 USD</textarea>
+    <div class="row">
+      <div>
+        <label for="qubits">Qubits sent</label>
+        <select id="qubits"><option>1024</option><option selected>2048</option><option>4096</option></select>
+      </div>
+      <div>
+        <label for="noise">Channel noise <span class="range-val" id="noiseVal"></span></label>
+        <input type="range" id="noise" min="0" max="0.08" step="0.005" value="0.02">
+      </div>
+    </div>
+    <label class="toggle"><input type="checkbox" id="eve"> Intercept-resend eavesdropper (Eve)</label>
+    <div id="eveOpts" hidden>
+      <label for="intercept">Photons Eve intercepts <span class="range-val" id="interceptVal"></span></label>
+      <input type="range" id="intercept" min="0.1" max="1" step="0.05" value="1">
+    </div>
+    <label for="txid">Transaction id</label>
+    <input type="text" id="txid" class="mono" spellcheck="false">
+    <button class="send" id="send">Run secure transfer</button>
+    <div class="error" id="sendErr"></div>
+  </section>
+
+  <section>
+    <h2>Transfer pipeline</h2>
+    <p class="sub">What happened to the last transfer, stage by stage. The ledger recomputes its own verdict; it never trusts the service's.</p>
+    <div id="pipeline"><div class="empty">Run a transfer to see BB84, encryption, signing and the on-chain verdict.</div></div>
+  </section>
+
+  <section class="wide">
+    <div class="toolbar">
+      <div><h2>Audit ledger</h2><p class="sub">Only hashes and metadata are on-chain. No documents, keys or BB84 secrets.</p></div>
+      <button class="ghost" id="refresh">Refresh</button>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Transaction</th><th>Route</th><th>QBER</th><th>Status</th><th>Document hash</th><th>Recorded</th><th></th></tr></thead>
+      <tbody id="ledger"><tr><td colspan="7" class="sub">Loading…</td></tr></tbody>
+    </table></div>
+    <div class="detail" id="detail"></div>
+  </section>
+
+  <footer>BB84 runs on the Qiskit Aer simulator. Fabric's own transaction signatures are classical ECDSA; ML-DSA-65 adds post-quantum authentication at the application layer.</footer>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pct = (q) => (q * 100).toFixed(2) + "%";
+const short = (h, n = 12) => h ? esc(h.slice(0, n)) + "…" : "—";
+
+async function api(path, body) {
+  const opts = body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+  const res = await fetch("/api" + path, opts);
+  const data = await res.json().catch(() => ({ error: res.statusText }));
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+
+// ---- status & organizations ------------------------------------------------
+async function loadStatus() {
+  try {
+    const s = await api("/status");
+    const c = s.crypto || {};
+    const v = c.versions || {};
+    const pills = [
+      `<span class="pill ${c.status === "ok" ? "ok" : "bad"}">Crypto service: ${esc(c.status || "down")}</span>`,
+      v.qiskit ? `<span class="pill">Qiskit ${esc(v.qiskit)}</span>` : "",
+      v.liboqsPython ? `<span class="pill">liboqs-python ${esc(v.liboqsPython)}</span>` : "",
+      `<span class="pill ok">Fabric gateway: connected</span>`,
+    ];
+    $("pills").innerHTML = pills.join("");
+    $("orgs").innerHTML = ["OrgA", "OrgB"].map((id) => {
+      const o = s.organizations[id];
+      const l = o.ledger || {};
+      return `<div class="org">
+        <div><b>${esc(id)}</b> <span class="tag">${esc(o.displayName)} · ${esc(o.mspId)}</span></div>
+        ${o.registered ? `<span class="badge ok">ON LEDGER</span>` : `<button class="ghost" data-register="${esc(id)}">Register key</button>`}
+        <div class="meta">${o.registered
+          ? `${esc(l.algorithm)} · key id <span class="mono">${short(l.publicKeyId, 16)}</span>`
+          : "No ML-DSA public key on the ledger yet"}</div>
+      </div>`;
+    }).join("");
+  } catch (e) {
+    $("pills").innerHTML = `<span class="pill bad">Dashboard API unreachable</span>`;
+  }
+}
+
+$("orgs").addEventListener("click", async (e) => {
+  const id = e.target.dataset.register;
+  if (!id) return;
+  e.target.disabled = true; e.target.textContent = "Registering…";
+  try { await api("/register", { org: id }); } catch (err) { alert(err.message); }
+  loadStatus();
+});
+
+// ---- transfer form ---------------------------------------------------------
+const presets = {
+  honest:   { eve: false, intercept: 1, noise: 0.02, qubits: "2048" },
+  eve:      { eve: true,  intercept: 1, noise: 0.02, qubits: "2048" },
+  stealthy: { eve: true,  intercept: 0.3, noise: 0, qubits: "2048" },
+};
+function syncForm() {
+  $("noiseVal").textContent = pct(+$("noise").value);
+  $("interceptVal").textContent = Math.round($("intercept").value * 100) + "%";
+  $("eveOpts").hidden = !$("eve").checked;
+}
+function newTxId(tag) { $("txid").value = `demo-${tag || "tx"}-${Date.now().toString(36)}`; }
+document.querySelectorAll("[data-preset]").forEach((b) => b.addEventListener("click", () => {
+  const p = presets[b.dataset.preset];
+  $("eve").checked = p.eve; $("intercept").value = p.intercept; $("noise").value = p.noise; $("qubits").value = p.qubits;
+  newTxId(b.dataset.preset); syncForm();
+}));
+["noise", "intercept", "eve"].forEach((id) => $(id).addEventListener("input", syncForm));
+$("from").addEventListener("change", () => { $("to").value = $("from").value === "OrgA" ? "OrgB" : "OrgA"; });
+
+const STAGES = [
+  ["BB84 key exchange", "Qubits prepared in random bases on Qiskit Aer, sifted over an authenticated classical channel"],
+  ["Eavesdropper check", "QBER estimated on a disclosed sample; abort above the 11% security bound"],
+  ["Error correction & privacy amplification", "Cascade, key confirmation, Toeplitz hashing down to a 256-bit secret"],
+  ["Compress & encrypt", "zstd, then AES-256-GCM with an HKDF-SHA-256 key derived from the BB84 secret"],
+  ["Sign audit manifest", "Sender's ML-DSA-65 (FIPS 204) signature over the canonical manifest"],
+  ["Chaincode verification", "Both peers verify the ML-DSA signature against the on-ledger key and apply policy"],
+];
+
+function renderPipeline(state, r) {
+  const html = STAGES.map(([title, desc], i) => {
+    const st = state[i] || "";
+    return `<div class="stage ${st}"><div class="dot">${st === "done" ? "✓" : st === "fail" ? "✕" : i + 1}</div>
+      <div><h3>${title}</h3><p>${desc}</p>${r ? stageDetail(i, r) : ""}</div></div>`;
+  }).join("");
+  $("pipeline").innerHTML = `<div class="pipeline">${html}</div>` + (r ? verdict(r) : "");
+}
+
+function stageDetail(i, r) {
+  const c = r.crypto, l = r.ledger;
+  switch (i) {
+    case 0: return `<div class="kv"><span>sifted bits <b>${c.siftedKeyLength}</b></span><span>status <b>${esc(c.bb84Status)}</b></span><span>transcript <b>${short(c.transcriptHash)}</b></span></div>`;
+    case 1: {
+      const max = 0.3, w = Math.min(c.qber / max, 1) * 100, t = (c.qberThreshold / max) * 100;
+      return `<div class="gauge"><div class="fill ${c.qber > c.qberThreshold ? "over" : ""}" style="width:${w}%"></div><div class="thr" style="left:${t}%"></div></div>
+        <div class="gauge-labels"><span>QBER ${pct(c.qber)}</span><span>threshold ${pct(c.qberThreshold)}</span><span>30%</span></div>`;
+    }
+    case 2: return `<div class="kv"><span>final key <b>${c.finalKeyLength} bits</b></span>${c.abortReason ? `<span>abort <b>${esc(c.abortReason)}</b></span>` : ""}</div>`;
+    case 3: return c.compressedSize != null
+      ? `<div class="kv"><span>${esc(c.compression)} <b>${c.originalSize} → ${c.compressedSize} B</b></span><span>cipher <b>${esc(c.encryption)}</b></span></div>`
+      : `<div class="kv"><span>skipped <b>no secure key, document never encrypted or sent</b></span></div>`;
+    case 4: return `<div class="kv"><span>signature <b>${c.signatureBytes} B</b></span><span>document hash <b>${short(l.manifest.documentHash)}</b></span></div>`;
+    case 5: return `<div class="kv"><span>ML-DSA verified on-chain <b>${l.mldsaVerified}</b></span><span>submitter <b>${esc(l.submitterMspId)}</b></span><span>fabric tx <b>${short(l.fabricTxId)}</b></span></div>`;
+  }
+  return "";
+}
+
+function verdict(r) {
+  const l = r.ledger, ok = l.securityStatus === "VERIFIED";
+  return `<div class="verdict ${ok ? "ok" : "bad"}"><div class="big">${esc(l.securityStatus)}</div>
+    <div><div class="mono">${esc(l.transactionId)}</div>
+    ${(l.rejectionReasons || []).map((x) => `<span class="reason">${esc(x)}</span>`).join("") || `<span class="sub">recorded on the ledger in ${r.ledgerDurationMs} ms · crypto ${r.crypto.durationMs} ms</span>`}</div></div>`;
+}
+
+$("send").addEventListener("click", async () => {
+  $("sendErr").textContent = "";
+  $("send").disabled = true; $("send").textContent = "Running BB84 on Qiskit…";
+  const running = ["running"];
+  renderPipeline(running);
+  let step = 0;
+  const ticker = setInterval(() => { if (step < 4) { running[step] = "done"; running[++step] = "running"; renderPipeline(running); } }, 900);
+  try {
+    const r = await api("/transfer", {
+      from: $("from").value, to: $("to").value, document: $("doc").value, transactionId: $("txid").value.trim(),
+      eavesdropper: $("eve").checked, interceptionRate: +$("intercept").value,
+      channelErrorRate: +$("noise").value, numQubits: +$("qubits").value,
+    });
+    clearInterval(ticker);
+    const c = r.crypto, aborted = c.bb84Status !== "SUCCESS";
+    const qberFail = c.abortReason === "QBER_THRESHOLD_EXCEEDED";
+    const state = aborted
+      ? ["done", qberFail ? "fail" : "done", qberFail ? "skip" : "fail", "skip", "done", "done"]
+      : ["done", "done", "done", "done", "done", r.ledger.mldsaVerified ? "done" : "fail"];
+    renderPipeline(state, r);
+    newTxId();
+    loadLedger();
+  } catch (e) {
+    clearInterval(ticker);
+    renderPipeline(running.map((s) => (s === "running" ? "fail" : s)));
+    $("sendErr").textContent = e.message;
+  } finally {
+    $("send").disabled = false; $("send").textContent = "Run secure transfer";
+  }
+});
+
+// ---- ledger ----------------------------------------------------------------
+async function loadLedger() {
+  try {
+    const rows = await api("/transactions");
+    rows.sort((a, b) => (b.recordedAt || "").localeCompare(a.recordedAt || ""));
+    $("ledger").innerHTML = rows.length ? rows.map((t) => `<tr>
+      <td class="mono">${esc(t.transactionId)}</td>
+      <td>${esc(t.manifest.sender)} → ${esc(t.manifest.receiver)}</td>
+      <td class="mono">${pct(t.qber)}</td>
+      <td><span class="badge ${t.securityStatus === "VERIFIED" ? "ok" : "bad"}">${esc(t.securityStatus)}</span>
+          ${(t.rejectionReasons || []).map((x) => `<br><span class="reason">${esc(x)}</span>`).join("")}</td>
+      <td class="mono">${short(t.manifest.documentHash, 16)}</td>
+      <td class="sub">${esc((t.recordedAt || "").replace("T", " ").replace("Z", ""))}</td>
+      <td><div class="actions">
+        <button class="ghost" data-verify="${esc(t.transactionId)}">Re-verify as ${t.manifest.receiver === "OrgB" ? "OrgB" : "OrgA"}</button>
+        <button class="danger" data-attack="${esc(t.transactionId)}">Attack</button>
+      </div></td></tr>`).join("")
+      : `<tr><td colspan="7" class="sub">No transactions yet.</td></tr>`;
+  } catch (e) {
+    $("ledger").innerHTML = `<tr><td colspan="7" class="error">${esc(e.message)}</td></tr>`;
+  }
+}
+
+$("ledger").addEventListener("click", async (e) => {
+  const v = e.target.dataset.verify, a = e.target.dataset.attack;
+  if (!v && !a) return;
+  e.target.disabled = true;
+  const detail = $("detail");
+  detail.innerHTML = `<div class="sub">${v ? "Re-verifying on the ledger…" : "Submitting forged transactions to the chaincode…"}</div>`;
+  try {
+    if (v) {
+      const as = e.target.textContent.trim().slice(-4);
+      const r = await api(`/transactions/${encodeURIComponent(v)}/verify?as=${as}`);
+      detail.innerHTML = `<h2>Independent re-verification of ${esc(v)} by ${esc(as)}</h2>` + [
+        check(r.signatureValid, "ML-DSA-65 signature valid", "Stored signature re-checked against the sender's on-ledger public key"),
+        check(true, `Recomputed verdict: ${r.recomputedStatus}`, `Stored verdict: ${r.storedStatus}`),
+        check(r.consistent, r.consistent ? "Record consistent" : "Record INCONSISTENT", "Stored and recomputed verdicts agree"),
+      ].join("");
+    } else {
+      const results = await api(`/transactions/${encodeURIComponent(a)}/attacks`, {});
+      detail.innerHTML = `<h2>Attacks against ${esc(a)}</h2>` +
+        results.map((x) => check(x.refused, `${x.name}: ${x.refused ? "refused" : "ACCEPTED"}`, `${esc(x.description)}<br><span class="mono">${esc(x.message)}</span>`)).join("");
+      loadLedger();
+    }
+  } catch (err) {
+    detail.innerHTML = `<div class="error">${esc(err.message)}</div>`;
+  } finally {
+    e.target.disabled = false;
+  }
+});
+
+function check(ok, title, body) {
+  return `<div class="check"><div class="ic ${ok ? "ok" : "bad"}">${ok ? "✓" : "✕"}</div><div><b>${esc(title)}</b><p>${body}</p></div></div>`;
+}
+
+$("refresh").addEventListener("click", () => { loadStatus(); loadLedger(); });
+newTxId("honest"); syncForm(); loadStatus(); loadLedger();
+</script>
+</body>
+</html>
