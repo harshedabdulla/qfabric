@@ -1,8 +1,13 @@
 package main
 
 import (
+	"bytes"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"time"
 
 	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
 	"github.com/hyperledger/fabric-contract-api-go/v2/contractapi"
@@ -13,12 +18,11 @@ type AuditContract struct {
 	contractapi.Contract
 }
 
-var errNotImplemented = errors.New("not implemented yet")
-
 // Composite-key object types. Kept here so every function uses the same
 // key layout.
 const (
 	keyOrganization = "org"     // org~<orgId>            -> Organization
+	keyMSP          = "msp"     // msp~<mspId>            -> orgId (one org per MSP)
 	keyTransaction  = "tx"      // tx~<transactionId>     -> AuditRecord
 	keySession      = "session" // session~<sessionId>   -> transactionId (replay guard)
 )
@@ -30,61 +34,260 @@ const (
 // manifestJSON (the `auditManifest` object from the crypto service), and
 // signatureB64 (the `signature.value` field).
 //
-// TODO(blockchain):
-//  1. Refuse if tx~transactionID or session~manifest.sessionId already
-//     exists (replay protection: one ledger record per signed manifest).
-//  2. Strict-decode manifestJSON (json.Decoder + DisallowUnknownFields),
-//     then manifest.Validate().
-//  3. Load the sender Organization; require
-//     manifest.SenderKeyID == org.PublicKeyID.
-//  4. Require ctx.GetClientIdentity().GetMSPID() == org.MSPID (the sender
-//     records its own transfer through its own Fabric identity).
-//  5. verifyMLDSA65(orgPublicKey, manifest.CanonicalBytes(), signature).
-//     On failure return an error; an unauthenticated manifest is never
-//     written to the ledger.
-//  6. reasons := manifest.PolicyViolations();
-//     status = VERIFIED if empty, else REJECTED.
-//  7. Build AuditRecord (MLDSAVerified=true, QBER=QBERPpm/1e6,
-//     FabricTxID=stub.GetTxID(), RecordedAt from GetTxTimestamp()).
-//  8. PutState record + session index; SetEvent("SecureTransactionRecorded").
+// Malformed, replayed, mis-attributed or unauthenticated submissions return
+// an error and nothing is written. Authenticated manifests that fail the
+// security policy are recorded as REJECTED with reasons.
 func (c *AuditContract) RecordSecureTransaction(
 	ctx contractapi.TransactionContextInterface,
 	transactionID, manifestJSON, signatureB64 string,
 ) (*AuditRecord, error) {
-	return nil, errNotImplemented
+	stub := ctx.GetStub()
+	if !reIdentifier.MatchString(transactionID) {
+		return nil, fmt.Errorf("invalid transactionId %q", transactionID)
+	}
+
+	// 1. Structural validation.
+	manifest, err := decodeManifest(manifestJSON)
+	if err != nil {
+		return nil, err
+	}
+	if err := manifest.Validate(); err != nil {
+		return nil, err
+	}
+	signature, err := base64.StdEncoding.DecodeString(signatureB64)
+	if err != nil {
+		return nil, fmt.Errorf("signature must be standard base64: %w", err)
+	}
+
+	// 2. Replay protection: one record per transaction ID and per session.
+	txKey, err := stub.CreateCompositeKey(keyTransaction, []string{transactionID})
+	if err != nil {
+		return nil, err
+	}
+	if exists, err := stateExists(ctx, txKey); err != nil {
+		return nil, err
+	} else if exists {
+		return nil, fmt.Errorf("transaction %s already recorded", transactionID)
+	}
+	sessionKey, err := stub.CreateCompositeKey(keySession, []string{manifest.SessionID})
+	if err != nil {
+		return nil, err
+	}
+	if prior, err := stub.GetState(sessionKey); err != nil {
+		return nil, err
+	} else if prior != nil {
+		return nil, fmt.Errorf("session %s already recorded as transaction %s", manifest.SessionID, prior)
+	}
+
+	// 3. Bind the manifest to registered identities.
+	sender, err := c.GetOrganization(ctx, manifest.Sender)
+	if err != nil {
+		return nil, fmt.Errorf("sender: %w", err)
+	}
+	if _, err := c.GetOrganization(ctx, manifest.Receiver); err != nil {
+		return nil, fmt.Errorf("receiver: %w", err)
+	}
+	if manifest.SenderKeyID != sender.PublicKeyID {
+		return nil, fmt.Errorf("senderKeyId does not match the ledger-registered key of %s", sender.OrgID)
+	}
+	submitterMSP, err := ctx.GetClientIdentity().GetMSPID()
+	if err != nil {
+		return nil, fmt.Errorf("read caller MSP: %w", err)
+	}
+	if submitterMSP != sender.MSPID {
+		return nil, fmt.Errorf("submitter MSP %s may not record transfers sent by %s (%s)", submitterMSP, sender.OrgID, sender.MSPID)
+	}
+
+	// 4. Application-level post-quantum authentication, against the ledger key.
+	publicKey, err := base64.StdEncoding.DecodeString(sender.PublicKey)
+	if err != nil {
+		return nil, fmt.Errorf("stored public key corrupt: %w", err)
+	}
+	if err := verifyMLDSA65(publicKey, manifest.CanonicalBytes(), signature); err != nil {
+		return nil, err
+	}
+
+	// 5. Security policy.
+	reasons := manifest.PolicyViolations()
+	status := StatusVerified
+	if len(reasons) > 0 {
+		status = StatusRejected
+	}
+	recordedAt, err := txTimestamp(ctx)
+	if err != nil {
+		return nil, err
+	}
+	record := &AuditRecord{
+		DocType:          "auditRecord",
+		TransactionID:    transactionID,
+		Manifest:         *manifest,
+		QBER:             float64(manifest.QBERPpm) / 1e6,
+		MLDSAVerified:    true,
+		SignatureAlg:     SignatureAlgorithm,
+		Signature:        signatureB64,
+		SecurityStatus:   status,
+		RejectionReasons: reasons,
+		SenderMSPID:      sender.MSPID,
+		SubmitterMSPID:   submitterMSP,
+		FabricTxID:       stub.GetTxID(),
+		RecordedAt:       recordedAt,
+	}
+
+	// 6. Persist record + replay index, emit event.
+	if err := putJSON(ctx, txKey, record); err != nil {
+		return nil, err
+	}
+	if err := stub.PutState(sessionKey, []byte(transactionID)); err != nil {
+		return nil, err
+	}
+	event, _ := json.Marshal(map[string]string{
+		"transactionId":  transactionID,
+		"sessionId":      manifest.SessionID,
+		"securityStatus": status,
+	})
+	if err := stub.SetEvent("SecureTransactionRecorded", event); err != nil {
+		return nil, err
+	}
+	return record, nil
 }
 
 // GetTransaction returns one audit record.
-//
-// TODO(blockchain): GetState(tx~transactionID); error if missing.
 func (c *AuditContract) GetTransaction(
 	ctx contractapi.TransactionContextInterface,
 	transactionID string,
 ) (*AuditRecord, error) {
-	return nil, errNotImplemented
+	if !reIdentifier.MatchString(transactionID) {
+		return nil, fmt.Errorf("invalid transactionId %q", transactionID)
+	}
+	key, err := ctx.GetStub().CreateCompositeKey(keyTransaction, []string{transactionID})
+	if err != nil {
+		return nil, err
+	}
+	var record AuditRecord
+	found, err := getJSON(ctx, key, &record)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, fmt.Errorf("transaction %s not found", transactionID)
+	}
+	return &record, nil
 }
 
-// GetAllTransactions returns every audit record (demo scale; add pagination
-// with GetStateByPartialCompositeKeyWithPagination if the ledger grows).
-//
-// TODO(blockchain): iterate GetStateByPartialCompositeKey(keyTransaction, nil).
+// GetAllTransactions returns every audit record, ordered by transaction ID
+// (demo scale; switch to GetStateByPartialCompositeKeyWithPagination if the
+// ledger grows).
 func (c *AuditContract) GetAllTransactions(
 	ctx contractapi.TransactionContextInterface,
 ) ([]*AuditRecord, error) {
-	return nil, errNotImplemented
+	iter, err := ctx.GetStub().GetStateByPartialCompositeKey(keyTransaction, []string{})
+	if err != nil {
+		return nil, err
+	}
+	defer iter.Close()
+
+	records := []*AuditRecord{}
+	for iter.HasNext() {
+		kv, err := iter.Next()
+		if err != nil {
+			return nil, err
+		}
+		var record AuditRecord
+		if err := json.Unmarshal(kv.Value, &record); err != nil {
+			return nil, fmt.Errorf("corrupt record %q: %w", kv.Key, err)
+		}
+		records = append(records, &record)
+	}
+	return records, nil
 }
 
 // VerifyTransactionRecord independently re-verifies a stored record: it
 // re-checks the stored ML-DSA signature against the registered public key
-// and recomputes the security status from the stored manifest.
-//
-// TODO(blockchain): load record + sender org; verifyMLDSA65; recompute
-// PolicyViolations(); compare with the stored SecurityStatus.
+// and recomputes the security status from the stored manifest. It reports
+// the outcome rather than failing, so auditors can see what is inconsistent.
 func (c *AuditContract) VerifyTransactionRecord(
 	ctx contractapi.TransactionContextInterface,
 	transactionID string,
 ) (*VerificationResult, error) {
-	return nil, errNotImplemented
+	record, err := c.GetTransaction(ctx, transactionID)
+	if err != nil {
+		return nil, err
+	}
+	sender, err := c.GetOrganization(ctx, record.Manifest.Sender)
+	if err != nil {
+		return nil, fmt.Errorf("sender: %w", err)
+	}
+
+	signatureValid := false
+	publicKey, errKey := base64.StdEncoding.DecodeString(sender.PublicKey)
+	signature, errSig := base64.StdEncoding.DecodeString(record.Signature)
+	if errKey == nil && errSig == nil && record.Manifest.SenderKeyID == sender.PublicKeyID {
+		signatureValid = verifyMLDSA65(publicKey, record.Manifest.CanonicalBytes(), signature) == nil
+	}
+
+	recomputed := StatusVerified
+	if len(record.Manifest.PolicyViolations()) > 0 {
+		recomputed = StatusRejected
+	}
+	return &VerificationResult{
+		TransactionID:    transactionID,
+		SignatureValid:   signatureValid,
+		StoredStatus:     record.SecurityStatus,
+		RecomputedStatus: recomputed,
+		Consistent:       signatureValid && recomputed == record.SecurityStatus,
+	}, nil
+}
+
+// decodeManifest strictly decodes the manifest JSON: unknown fields and
+// trailing data are rejected.
+func decodeManifest(manifestJSON string) (*AuditManifest, error) {
+	dec := json.NewDecoder(bytes.NewReader([]byte(manifestJSON)))
+	dec.DisallowUnknownFields()
+	var m AuditManifest
+	if err := dec.Decode(&m); err != nil {
+		return nil, fmt.Errorf("invalid manifest JSON: %w", err)
+	}
+	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
+		return nil, errors.New("invalid manifest JSON: trailing data")
+	}
+	return &m, nil
+}
+
+func stateExists(ctx contractapi.TransactionContextInterface, key string) (bool, error) {
+	value, err := ctx.GetStub().GetState(key)
+	if err != nil {
+		return false, err
+	}
+	return value != nil, nil
+}
+
+func getJSON(ctx contractapi.TransactionContextInterface, key string, out any) (bool, error) {
+	value, err := ctx.GetStub().GetState(key)
+	if err != nil || value == nil {
+		return false, err
+	}
+	if err := json.Unmarshal(value, out); err != nil {
+		return false, fmt.Errorf("corrupt state at %q: %w", key, err)
+	}
+	return true, nil
+}
+
+func putJSON(ctx contractapi.TransactionContextInterface, key string, value any) error {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	return ctx.GetStub().PutState(key, data)
+}
+
+// txTimestamp is the deterministic transaction time (identical on every
+// endorsing peer), never the local clock.
+func txTimestamp(ctx contractapi.TransactionContextInterface) (string, error) {
+	ts, err := ctx.GetStub().GetTxTimestamp()
+	if err != nil {
+		return "", err
+	}
+	return ts.AsTime().UTC().Format(time.RFC3339), nil
 }
 
 // parseMLDSA65PublicKey decodes a raw FIPS 204 ML-DSA-65 public key.

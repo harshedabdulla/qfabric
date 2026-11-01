@@ -4,7 +4,10 @@ go 1.25.0
 
 require (
 	github.com/cloudflare/circl v1.6.5
+	github.com/hyperledger/fabric-chaincode-go/v2 v2.3.1-0.20260319210430-56968fdc7833
 	github.com/hyperledger/fabric-contract-api-go/v2 v2.2.2
+	github.com/hyperledger/fabric-protos-go-apiv2 v0.3.7
+	google.golang.org/protobuf v1.36.11
 )
 
 require (
@@ -18,8 +21,6 @@ require (
 	github.com/go-openapi/swag/stringutils v0.27.3 // indirect
 	github.com/go-openapi/swag/typeutils v0.27.3 // indirect
 	github.com/go-openapi/swag/yamlutils v0.27.3 // indirect
-	github.com/hyperledger/fabric-chaincode-go/v2 v2.3.1-0.20260319210430-56968fdc7833 // indirect
-	github.com/hyperledger/fabric-protos-go-apiv2 v0.3.7 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
@@ -30,5 +31,4 @@ require (
 	golang.org/x/text v0.40.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260414002931-afd174a4e478 // indirect
 	google.golang.org/grpc v1.82.1 // indirect
-	google.golang.org/protobuf v1.36.11 // indirect
 )

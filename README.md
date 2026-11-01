@@ -40,13 +40,14 @@ Built for **Qiskit IBM Quantum Hacks, Challenge 5: Post-Quantum Cryptography**.
 |---|---|
 | Repository structure, docs, API contract, sample payloads | ✅ |
 | ML-DSA-65 cross-language test vector (Go CIRCL ↔ Python liboqs 0.16.0) | ✅ verified both ways |
-| Chaincode: data model, canonical manifest, validation, ledger policy, ML-DSA verification | ✅ unit-tested |
-| Chaincode: ledger functions (register, record, query, re-verify) | ⏳ stubs |
-| Fabric client (gateway, CLI, crypto API client) | ✅ compiles. Not yet run against a live network |
-| Fabric network scripts (pinned 2.5.16) | ✅ written. Not yet run end to end |
+| Fabric 2.5.16 network, channel, chaincode deploy and upgrade | ✅ running |
+| Chaincode: register/get org, record/get/list transactions, re-verify. ML-DSA-65 verification on both peers, policy, replay guard | ✅ unit-tested and deployed |
+| Fabric client (gateway, CLI, crypto API client) | ✅ end to end on the live network |
+| Live attack scenarios: replay, tampered manifest, wrong MSP | ✅ all refused |
 | Crypto API skeleton, schemas, `/health`, error envelope, Docker image | ✅ |
-| BB84, ML-DSA service logic, encryption | ⏳ stubs |
-| End-to-end demo | ⏳ Phase 3 |
+| **BB84 (Qiskit), ML-DSA service logic, HKDF/AES-GCM/compression** | ⏳ **not implemented** (stubs in `quantum-pqc/`) |
+| ML-KEM | ➖ not part of the current design (see [SECURITY_MODEL.md](docs/SECURITY_MODEL.md)) |
+| End-to-end demo | 🟡 runs with the **mock** crypto service (`MOCK_CRYPTO=1`). Real BB84 pending |
 | Benchmarks | ⏳ Phase 4 |
 
 ---
@@ -254,14 +255,15 @@ cd blockchain
 
 ## 16. Running the integrated demo
 
-*Available after Phase 3.*
-
 ```bash
-./scripts/run-demo.sh                   # starts crypto service + Fabric, deploys, runs scenarios
-SKIP_INFRA=1 ./scripts/run-demo.sh      # reuse running services
+MOCK_CRYPTO=1 ./scripts/run-demo.sh     # works today: mock crypto service + live Fabric
+./scripts/run-demo.sh                   # real crypto service (after quantum-pqc is implemented)
+SKIP_INFRA=1 ./scripts/run-demo.sh      # reuse an already running network and crypto service
 ```
 
-Scenarios: register OrgA/OrgB keys, then an honest transfer (`VERIFIED`), then an eavesdropped transfer (`REJECTED`, `QBER_EXCEEDS_THRESHOLD`), then audit history and independent re-verification.
+Scenarios: register the OrgA and OrgB keys, then an honest transfer (`VERIFIED`), then an eavesdropped transfer (`REJECTED`, `QBER_EXCEEDS_THRESHOLD`), then the audit history, independent re-verification, and the replay/tamper/wrong-MSP attacks (all refused).
+
+The mock service produces real ML-DSA-65 signatures and real AES-256-GCM ciphertext, but its BB84 numbers are simulated statistics, not Qiskit runs.
 
 ## 17. Benchmarking
 

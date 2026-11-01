@@ -3,6 +3,7 @@ module qfabric/blockchain
 go 1.25.0
 
 require (
+	github.com/cloudflare/circl v1.6.5
 	github.com/hyperledger/fabric-gateway v1.12.1
 	google.golang.org/grpc v1.83.2
 )
