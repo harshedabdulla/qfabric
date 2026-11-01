@@ -6,7 +6,8 @@
 |---|---|---|
 | git | any recent | both |
 | Python | **3.12** (3.11–3.13 supported; Qiskit/Aer wheels lag the newest CPython) | Quantum/PQC |
-| liboqs (C) | **0.16.x**, matching `liboqs-python~=0.16.0` | Quantum/PQC (or use Docker) |
+| liboqs (C) | **0.16.x**, matching `liboqs-python~=0.16.0`. `setup.sh` builds it into `quantum-pqc/.oqs` | Quantum/PQC (or use Docker) |
+| Rust (cargo) | stable (rustup) | Quantum/PQC: builds Qiskit from `quantum-pqc/third_party/qiskit` |
 | Go | 1.25+ | Blockchain |
 | Docker + Compose v2 | recent | Blockchain (Fabric), crypto service container |
 | jq, curl | any | Fabric test-network scripts |

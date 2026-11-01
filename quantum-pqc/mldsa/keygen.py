@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass, field
 
+from mldsa import ALGORITHM, PUBLIC_KEY_SIZE, SECRET_KEY_SIZE
+
 
 @dataclass(frozen=True)
 class KeyPair:
@@ -13,8 +15,15 @@ class KeyPair:
 
 
 def generate_keypair() -> KeyPair:
-    """Generate an ML-DSA-65 key pair with ``oqs.Signature("ML-DSA-65")``."""
-    raise NotImplementedError("TODO(quantum-pqc): generate_keypair")
+    """Generate an ML-DSA-65 key pair with liboqs (OS randomness)."""
+    import oqs  # lazy: importing oqs needs the liboqs C library
+
+    with oqs.Signature(ALGORITHM) as signer:
+        public_key = bytes(signer.generate_keypair())
+        secret_key = bytes(signer.export_secret_key())
+    if len(public_key) != PUBLIC_KEY_SIZE or len(secret_key) != SECRET_KEY_SIZE:
+        raise RuntimeError("liboqs returned unexpected ML-DSA-65 key sizes")
+    return KeyPair(public_key=public_key, secret_key=secret_key)
 
 
 def public_key_id(public_key: bytes) -> str:

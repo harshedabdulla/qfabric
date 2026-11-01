@@ -5,7 +5,7 @@
 //
 //	go run ./client health
 //	QFABRIC_ORG=OrgA go run ./client register
-//	QFABRIC_ORG=OrgA go run ./client transfer -to OrgB -file doc.txt [-eve] [-tx qfabric-tx-001]
+//	QFABRIC_ORG=OrgA go run ./client transfer -to OrgB -file doc.txt [-eve [-intercept 0.3]] [-noise 0.02] [-qubits 2048] [-tx qfabric-tx-001]
 //	go run ./client get qfabric-tx-001
 //	go run ./client list
 //	go run ./client verify qfabric-tx-001
@@ -105,6 +105,9 @@ func cmdTransfer(ctx context.Context, cfg *Config, crypto *integration.CryptoCli
 	to := fs.String("to", "OrgB", "receiver organization")
 	file := fs.String("file", "", "document to send")
 	eve := fs.Bool("eve", false, "simulate intercept-resend eavesdropper")
+	intercept := fs.Float64("intercept", 1.0, "fraction of photons Eve intercepts (with -eve)")
+	noise := fs.Float64("noise", 0.02, "simulated quantum-channel error rate")
+	qubits := fs.Int("qubits", 2048, "BB84 qubits to send")
 	txID := fs.String("tx", fmt.Sprintf("qfabric-tx-%d", time.Now().UnixNano()), "QFabric transaction id")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -120,7 +123,10 @@ func cmdTransfer(ctx context.Context, cfg *Config, crypto *integration.CryptoCli
 	transfer, err := crypto.SecureTransfer(ctx, integration.SecureTransferRequest{
 		Sender: cfg.Org.OrgID, Receiver: *to,
 		Document:             base64.StdEncoding.EncodeToString(doc),
+		NumQubits:            qubits,
+		ChannelErrorRate:     noise,
 		SimulateEavesdropper: *eve,
+		InterceptionRate:     intercept,
 	})
 	if err != nil {
 		return err

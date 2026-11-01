@@ -5,3 +5,7 @@
 .env
 tests/
 scripts/
+third_party/qiskit/target/
+third_party/qiskit/qiskit.egg-info/
+third_party/qiskit/**/*.so
+.oqs/

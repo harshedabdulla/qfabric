@@ -8,6 +8,14 @@ Import ``oqs`` lazily inside functions so modules that do not sign can be
 imported without liboqs installed.
 """
 
+import os
+from pathlib import Path
+
+_LOCAL_LIBOQS = Path(__file__).resolve().parent.parent / ".oqs"
+if "OQS_INSTALL_PATH" not in os.environ and (_LOCAL_LIBOQS / "lib").is_dir():
+    # scripts/setup.sh builds liboqs into quantum-pqc/.oqs (git-ignored).
+    os.environ["OQS_INSTALL_PATH"] = str(_LOCAL_LIBOQS)
+
 ALGORITHM = "ML-DSA-65"
 PUBLIC_KEY_SIZE = 1952
 SECRET_KEY_SIZE = 4032

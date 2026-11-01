@@ -114,6 +114,7 @@ type HealthResponse struct {
 	Service    string            `json:"service"`
 	Version    string            `json:"version"`
 	Components map[string]string `json:"components"`
+	Versions   map[string]string `json:"versions,omitempty"`
 }
 
 // APIError mirrors the error envelope {"error": {...}}.

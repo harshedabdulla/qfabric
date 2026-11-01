@@ -11,10 +11,20 @@ The derived key is never logged, returned, or persisted.
 
 from __future__ import annotations
 
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
 
 def derive_aes_key(shared_secret: bytes, session_id: str, sender: str, receiver: str) -> bytes:
-    """Return a 32-byte AES-256 key (``cryptography`` HKDF)."""
-    raise NotImplementedError("TODO(quantum-pqc): derive_aes_key")
+    """Return a 32-byte AES-256 key bound to the session and direction."""
+    if len(shared_secret) < 32:
+        raise ValueError("shared secret must be at least 256 bits")
+    return HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=session_id.encode(),
+        info=f"qfabric/v1/aes-256-gcm|{sender}|{receiver}".encode(),
+    ).derive(shared_secret)
 
 
 def associated_data(session_id: str, sender: str, receiver: str) -> bytes:

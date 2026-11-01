@@ -31,6 +31,8 @@ FIELD_ORDER = (
     "timestamp",
 )
 
+INTEGER_FIELDS = frozenset({"qberPpm", "qberThresholdPpm", "siftedKeyLength", "finalKeyLength"})
+
 
 def to_ppm(rate: float) -> int:
     """Convert a rate in [0, 1] to integer parts-per-million (round half
@@ -40,6 +42,26 @@ def to_ppm(rate: float) -> int:
 
 def canonical_manifest(manifest: dict) -> bytes:
     """Serialize a manifest dict (camelCase keys, exactly FIELD_ORDER) to
-    canonical bytes. Reject missing/extra keys and any value containing
-    "\\n" or "=" in identifiers (the Pydantic schema enforces formats)."""
-    raise NotImplementedError("TODO(quantum-pqc): canonical_manifest")
+    canonical bytes. Rejects missing or extra keys, wrong value types, and
+    values containing line breaks."""
+    keys = set(manifest)
+    if keys != set(FIELD_ORDER):
+        missing, extra = set(FIELD_ORDER) - keys, keys - set(FIELD_ORDER)
+        raise ValueError(f"manifest fields mismatch (missing={sorted(missing)}, extra={sorted(extra)})")
+    lines = [HEADER]
+    for name in FIELD_ORDER:
+        value = manifest[name]
+        if hasattr(value, "value"):  # str Enum from the Pydantic model
+            value = value.value
+        if name in INTEGER_FIELDS:
+            if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                raise ValueError(f"{name} must be a non-negative integer")
+            text = str(value)
+        else:
+            if not isinstance(value, str):
+                raise ValueError(f"{name} must be a string")
+            text = value
+        if "\n" in text or "\r" in text:
+            raise ValueError(f"{name} must not contain line breaks")
+        lines.append(f"{name}={text}")
+    return "\n".join(lines).encode("utf-8")
