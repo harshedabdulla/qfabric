@@ -94,6 +94,16 @@ go run ./client verify qfabric-tx-001
 ./scripts/attack-scenarios.sh qfabric-tx-001   # replay / tamper / wrong-MSP must all be refused
 ```
 
+### Dashboard
+
+```bash
+go run ./client serve          # http://127.0.0.1:8080
+```
+
+A single-page UI (`client/web/index.html`, embedded in the binary) over a small JSON API in `client/serve.go`. It holds Fabric Gateway connections for both OrgA and OrgB, so it can register keys, run transfers (honest, eavesdropped, stealthy Eve), list the ledger, re-verify as the other org and fire the replay / tamper / wrong-MSP attacks. Same chaincode calls as the CLI.
+
+It signs with the test network's User1 keys, so it listens on loopback only, rejects non-local `Host` headers and requires `application/json` on POSTs (no CORS). It never receives ML-DSA secret keys, BB84 keys or ciphertext.
+
 ### Testing the chaincode without the crypto service
 
 Use the shared vector `integration/test_vectors/mldsa65_audit_manifest.json`. It contains an ML-DSA-65 public key, a manifest and a valid signature. With the network up and the chaincode implemented:

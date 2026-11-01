@@ -18,6 +18,22 @@ mkdir -p demo-output && printf 'CONFIDENTIAL PURCHASE ORDER PO-2026-0042\nBuyer:
 
 This starts the crypto service and Fabric, deploys the chaincode, registers both orgs, runs an honest and an eavesdropped transfer, shows the audit history, re-verifies, and runs the attacks. Use it as a backup, or when time is short.
 
+## Option C: web dashboard
+
+After step 1 below (infrastructure up):
+
+```bash
+cd blockchain && go run ./client serve      # open http://127.0.0.1:8080
+```
+
+1. **Organizations**: click *Register key* for OrgA and OrgB (shows *ON LEDGER* if already done).
+2. **Honest channel** preset, then *Run secure transfer*: pipeline goes green, ledger says `VERIFIED`.
+3. **Eavesdropper** preset: QBER ≈ 25% crosses the 11% line on the gauge, `REJECTED`.
+4. **Stealthy Eve 30%** preset: QBER under 11%, still `REJECTED` (`INSUFFICIENT_KEY_MATERIAL` at privacy amplification).
+5. In the ledger table: *Re-verify as OrgB* on the honest row, then *Attack*: replay, tamper and wrong-MSP are all refused with the chaincode's own error.
+
+The dashboard calls the same chaincode functions as the CLI; use whichever suits the audience.
+
 ## Option B: step by step (recommended for presenting)
 
 ### 1. Start the infrastructure

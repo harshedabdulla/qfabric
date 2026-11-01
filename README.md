@@ -261,7 +261,7 @@ cd blockchain
 
 ## 16. Running the integrated demo
 
-**Presenter runbook with every command and talking points: [docs/DEMO.md](docs/DEMO.md).**
+**Presenter runbook with every command and talking points: [docs/DEMO.md](docs/DEMO.md).** Web dashboard: `cd blockchain && go run ./client serve`, then open http://127.0.0.1:8080.
 
 ```bash
 ./scripts/run-demo.sh                   # real crypto service in Docker + live Fabric
