@@ -10,15 +10,24 @@ This module implements BB84 quantum key distribution (simulated on Qiskit Aer), 
 
 | Component | Status |
 |---|---|
-| API skeleton, Pydantic schemas, error envelope, `/health` | ✅ working |
-| Contract tests (samples, schema, secret-field guard) | ✅ passing |
-| Dockerfile (liboqs 0.16.0 build) | ✅ builds. CIRCL ↔ liboqs vector verified |
-| BB84 (`bb84/`) | ⏳ stubs: implement |
-| ML-DSA (`mldsa/`) | ⏳ stubs (`public_key_id` done): implement |
-| Encryption (`encryption/`) | ⏳ stubs (`associated_data` done): implement |
-| Service layer (`api/services.py`) | ⏳ stubs return `501 NOT_IMPLEMENTED` |
+| BB84 on Qiskit Aer: Alice, Bob, intercept-resend Eve, noisy channel, sifting, QBER, Cascade, key confirmation, Toeplitz privacy amplification | ✅ |
+| ML-DSA-65 via liboqs: keygen, sign, verify, 0600 key store, canonical manifest | ✅ Signatures verified by the Go chaincode on a live network |
+| HKDF-SHA-256, zstd/gzip with bomb guard, AES-256-GCM, tamper detection | ✅ |
+| All `/api/v1` endpoints including `/secure-transfer` | ✅ |
+| Tests | ✅ 60 passing with liboqs installed. Without liboqs, 12 are skipped |
+| Dockerfile (liboqs 0.16.0) | ✅ |
 
-Update this table as pieces land. Don't mark ✅ until the tests pass.
+### Measured behaviour (2048 qubits, seed 42, Apple Silicon)
+
+| Scenario | QBER | Outcome |
+|---|---|---|
+| Ideal channel | 0.000 | SUCCESS, 256-bit key, ~40 ms |
+| 2% channel noise | 0.016 | SUCCESS (160 parity bits leaked) |
+| 5% noise | 0.039 | ABORTED `INSUFFICIENT_KEY_MATERIAL`. Succeeds with 4096 qubits |
+| Eve intercepts 30% | 0.082 | ABORTED `INSUFFICIENT_KEY_MATERIAL`: under the threshold, but privacy amplification leaves no secure key |
+| Eve intercepts 100% | 0.270 | ABORTED `QBER_THRESHOLD_EXCEEDED` |
+
+Use at least 2048 qubits for a 256-bit key. Higher noise needs more qubits.
 
 ## Layout
 
@@ -42,21 +51,25 @@ quantum-pqc/
 ├── api/                  FastAPI: main.py, routes.py, schemas.py (contract), services.py
 ├── scripts/              demo_bb84.py, demo_mldsa.py, demo_secure_transfer.py
 ├── tests/                pytest. NotImplementedError → reported as "skipped"
-├── Dockerfile            Python 3.12 + liboqs 0.16.0
+├── third_party/qiskit/   Qiskit 2.6.1 SOURCE (vendored). BB84 runs on Qiskit built from here
+├── Dockerfile            Python 3.12 + liboqs 0.16.0 + Qiskit built from third_party/qiskit
 └── requirements.txt
 ```
 
 ## Setup
 
 ```bash
-# from repo root
+# from repo root: venv, Qiskit from third_party/qiskit, deps, liboqs into quantum-pqc/.oqs
 ./scripts/setup.sh crypto
 # or manually
 cd quantum-pqc
 python3.12 -m venv .venv && source .venv/bin/activate
+pip install -e third_party/qiskit      # builds Qiskit 2.6.1 from the vendored source (Rust, ~2 min)
 pip install -r requirements.txt
 cp .env.example .env
 ```
+
+Check which Qiskit is running: `python -c "import qiskit; print(qiskit.__version__, qiskit.__file__)"` should print a path inside `third_party/qiskit`. Details: [third_party/README.md](third_party/README.md).
 
 ### Installing liboqs
 

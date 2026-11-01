@@ -2,7 +2,10 @@
 # Recommended interpreter: Python 3.12 (Qiskit / Aer wheels lag behind the newest CPython).
 
 # --- Quantum simulation (BB84) ---
-qiskit>=2.2,<3
+# Qiskit itself is NOT installed from PyPI: it is built from the vendored
+# source in third_party/qiskit (Qiskit 2.6.1). Install it FIRST:
+#     pip install -e third_party/qiskit        # needs a Rust toolchain
+# (scripts/setup.sh does both). qiskit-aer below then reuses that install.
 qiskit-aer>=0.17,<0.19
 numpy>=1.26
 

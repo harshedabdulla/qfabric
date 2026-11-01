@@ -36,22 +36,31 @@ setup_crypto() {
     "$py" -m venv .venv
   fi
   .venv/bin/python -m pip install --quiet --upgrade pip
+
+  # Qiskit is built from the vendored source in third_party/qiskit (2.6.1), not PyPI.
+  [ -f third_party/qiskit/pyproject.toml ] || die "quantum-pqc/third_party/qiskit is missing"
+  have cargo || die "Rust toolchain required to build Qiskit from source: https://rustup.rs"
+  if ! .venv/bin/python -c "import qiskit, sys; sys.exit(0 if 'third_party' in qiskit.__file__ else 1)" 2>/dev/null; then
+    log "building Qiskit from third_party/qiskit (Rust, takes a few minutes)"
+    .venv/bin/python -m pip uninstall --quiet --yes qiskit 2>/dev/null || true
+    .venv/bin/python -m pip install --quiet -e third_party/qiskit
+  fi
   .venv/bin/python -m pip install --quiet -r requirements.txt
   copy_env "$ROOT/quantum-pqc"
 
-  if ! .venv/bin/python - <<'PY' 2>/dev/null
-import ctypes.util, os, sys
-found = ctypes.util.find_library("oqs") or any(
-    os.path.exists(os.path.join(p, "lib", n))
-    for p in (os.environ.get("OQS_INSTALL_PATH", ""), os.path.expanduser("~/_oqs"))
-    for n in ("liboqs.dylib", "liboqs.so"))
-sys.exit(0 if found else 1)
-PY
-  then
-    warn "liboqs C library not found. Install it before using ML-DSA:"
-    warn "  macOS: brew install liboqs     (check version is 0.16.x)"
-    warn "  or build from source, see quantum-pqc/README.md#installing-liboqs"
-    warn "  or run the service in Docker: docker compose up --build crypto"
+  # liboqs 0.16.0 (C library for ML-DSA) is built into quantum-pqc/.oqs
+  # (git-ignored) unless one is already available. mldsa/__init__.py finds it.
+  if [ ! -e .oqs/lib/liboqs.dylib ] && [ ! -e .oqs/lib/liboqs.so ] && [ -z "${OQS_INSTALL_PATH:-}" ]; then
+    log "building liboqs 0.16.0 into quantum-pqc/.oqs"
+    .venv/bin/python -m pip install --quiet cmake ninja
+    local src
+    src="$(mktemp -d)"
+    git clone --quiet --depth 1 --branch 0.16.0 https://github.com/open-quantum-safe/liboqs "$src/liboqs"
+    .venv/bin/cmake -S "$src/liboqs" -B "$src/build" -GNinja -DCMAKE_MAKE_PROGRAM="$PWD/.venv/bin/ninja" \
+      -DBUILD_SHARED_LIBS=ON -DOQS_BUILD_ONLY_LIB=ON -DCMAKE_INSTALL_PREFIX="$PWD/.oqs" >/dev/null
+    .venv/bin/cmake --build "$src/build" >/dev/null
+    .venv/bin/cmake --install "$src/build" >/dev/null
+    rm -rf "$src"
   fi
   log "run tests: cd quantum-pqc && .venv/bin/python -m pytest"
 }

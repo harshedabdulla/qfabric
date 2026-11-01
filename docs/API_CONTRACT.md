@@ -183,12 +183,24 @@ Response (`BB84Response`):
   "eavesdropperEnabled": false,
   "interceptionRate": 0.0,
   "expectedQberFromAttack": null,
-  "backend": "aer_simulator",
+  "backend": "aer_simulator_stabilizer",
   "durationMs": 840.2
 }
 ```
 
 `abortReason` ∈ `QBER_THRESHOLD_EXCEEDED`, `KEY_CONFIRMATION_FAILED`, `INSUFFICIENT_KEY_MATERIAL`. On abort, `finalKeyLength` = 0 and no key is stored.
+
+`numQubits` guidance: a 256-bit key needs at least about 2048 qubits on a clean channel, and about 4096 at 5% noise. Below that, runs abort with `INSUFFICIENT_KEY_MATERIAL`.
+
+**Transcript authentication.** Both organizations sign the following bytes with ML-DSA-65, and each signature is verified before the key is accepted (`transcriptAuthenticated`):
+
+```
+QFABRIC-BB84-TRANSCRIPT-V1
+sessionId=<sessionId>
+sender=<orgId>
+receiver=<orgId>
+transcriptHash=<sha256 of the canonical JSON transcript>
+```
 
 ### 3.7 `POST /bb84/simulate-attack`
 

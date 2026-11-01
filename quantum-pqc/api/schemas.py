@@ -103,6 +103,11 @@ class HealthResponse(APIModel):
         description="Component -> 'available' | 'unavailable' | 'not_implemented'",
         examples=[{"qiskit": "available", "qiskitAer": "available", "liboqs": "available"}],
     )
+    versions: dict[str, str] = Field(
+        default_factory=dict,
+        description="Component versions and, for Qiskit, where it is loaded from",
+        examples=[{"qiskit": "2.6.1", "qiskitSource": "quantum-pqc/third_party/qiskit", "qiskitAer": "0.18.2"}],
+    )
 
 
 # --------------------------------------------------------------------------

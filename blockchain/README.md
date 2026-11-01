@@ -13,11 +13,11 @@ This module runs a Hyperledger Fabric 2.5 network with two organizations, the `q
 | Client: gateway connection, chaincode wrappers, crypto API client, CLI | ✅ end to end against the live network |
 | Live attack scenarios (replay, tamper, wrong MSP) | ✅ all refused, ledger unchanged (`scripts/attack-scenarios.sh`) |
 | Contract test (samples ↔ Go structs) | ✅ passing |
-| Real crypto service (BB84 / ML-DSA / AES in `quantum-pqc/`) | ⏳ not implemented yet. Use `tools/mockcrypto` until it is |
+| Real crypto service (`quantum-pqc/`) end to end with this client and chaincode | ✅ liboqs signatures verified by CIRCL on both peers |
 
 ## Mock crypto service (development only)
 
-`tools/mockcrypto` stands in for the Quantum/PQC service so the full client → Gateway → chaincode path can run today.
+`tools/mockcrypto` stands in for the Quantum/PQC service when you want to test the client → Gateway → chaincode path without Python, Qiskit or liboqs.
 
 - **Real:** ML-DSA-65 signatures (CIRCL), the canonical manifest, HKDF + gzip + AES-256-GCM, and every hash.
 - **Not real:** BB84. QBER comes from a simple random-error model (about 2% honest, about 2% + 25% × interception rate with Eve). **No quantum simulation runs, so never present mock numbers as BB84 results.**

@@ -2,17 +2,18 @@
 cross-language interop with the Go chaincode (cloudflare/circl)."""
 
 import base64
-import importlib.util
+import os
+import stat
 
 import pytest
+from conftest import requires_liboqs
 
 from mldsa import PUBLIC_KEY_SIZE, SIGNATURE_SIZE
+from mldsa.identity import KeyStore
 from mldsa.keygen import generate_keypair, public_key_id
 from mldsa.manifest import canonical_manifest, to_ppm
 from mldsa.signing import sign
 from mldsa.verification import verify
-
-requires_liboqs = pytest.mark.skipif(importlib.util.find_spec("oqs") is None, reason="liboqs-python not installed")
 
 
 def test_public_key_id_matches_vector(mldsa_vector):
@@ -64,3 +65,30 @@ def test_tampered_message_and_wrong_key_fail():
 def test_secret_key_not_in_repr():
     kp = generate_keypair()
     assert kp.secret_key.hex() not in repr(kp)
+
+
+def test_canonical_manifest_rejects_line_injection(mldsa_vector):
+    with pytest.raises(ValueError):
+        canonical_manifest({**mldsa_vector["manifest"], "sessionId": "x\nsender=OrgC"})
+
+
+def test_canonical_manifest_rejects_bool_as_int(mldsa_vector):
+    with pytest.raises(ValueError):
+        canonical_manifest({**mldsa_vector["manifest"], "finalKeyLength": True})
+
+
+@requires_liboqs
+def test_keystore_persists_keys_privately(tmp_path):
+    store = KeyStore(tmp_path / "ks")
+    identity = store.register("OrgA", "Manufacturer", "Org1MSP", "MANUFACTURER")
+    key_file = tmp_path / "ks" / "OrgA.key"
+    assert stat.S_IMODE(os.stat(key_file).st_mode) == 0o600
+    assert stat.S_IMODE(os.stat(tmp_path / "ks").st_mode) == 0o700
+    assert store.get("OrgA") == identity
+    assert verify(identity.public_key, b"m", store.sign_as("OrgA", b"m"))
+    with pytest.raises(FileExistsError):
+        store.register("OrgA", "Again", "Org1MSP", "MANUFACTURER")
+    with pytest.raises(KeyError):
+        store.get("OrgZ")
+    with pytest.raises(ValueError):
+        store.get("../etc")

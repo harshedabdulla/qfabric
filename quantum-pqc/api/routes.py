@@ -25,7 +25,8 @@ router = APIRouter(prefix="/api/v1", responses=_errors)
 def health() -> schemas.HealthResponse:
     components = services.component_status()
     status = "ok" if all(v == "available" for v in components.values()) else "degraded"
-    return schemas.HealthResponse(status=status, version=API_VERSION, components=components)
+    return schemas.HealthResponse(status=status, version=API_VERSION, components=components,
+                                  versions=services.component_versions())
 
 
 @router.post("/organizations/register", response_model=schemas.OrganizationResponse, status_code=201, tags=["organizations"])

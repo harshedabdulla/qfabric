@@ -6,7 +6,7 @@ QFabric is a hybrid security framework for permissioned blockchains. Organizatio
 
 Built for **Qiskit IBM Quantum Hacks, Challenge 5: Post-Quantum Cryptography**.
 
-> **Project status: Phase 1 (repository initialization).** Architecture, integration contract, scaffolds and tooling are in place. Most protocol logic is still stubbed. See [Implementation status](#implementation-status). Nothing below is claimed to work unless that table says so.
+> **Project status: Phase 3 (integration) complete.** The full flow runs end to end on a live Fabric 2.5 network with real Qiskit BB84 and liboqs ML-DSA-65. Benchmarks (Phase 4) are pending. See [Implementation status](#implementation-status).
 
 ---
 
@@ -45,9 +45,12 @@ Built for **Qiskit IBM Quantum Hacks, Challenge 5: Post-Quantum Cryptography**.
 | Fabric client (gateway, CLI, crypto API client) | ✅ end to end on the live network |
 | Live attack scenarios: replay, tampered manifest, wrong MSP | ✅ all refused |
 | Crypto API skeleton, schemas, `/health`, error envelope, Docker image | ✅ |
-| **BB84 (Qiskit), ML-DSA service logic, HKDF/AES-GCM/compression** | ⏳ **not implemented** (stubs in `quantum-pqc/`) |
+| BB84 on Qiskit Aer (Alice, Bob, intercept-resend Eve, noise, sifting, QBER, Cascade, privacy amplification) | ✅ |
+| ML-DSA-65 via liboqs (keys, signing, transcript + manifest signatures) | ✅ verified by the Go chaincode on the live network |
+| HKDF-SHA-256, zstd/gzip, AES-256-GCM, tamper detection | ✅ |
+| Crypto API: all endpoints, including `/secure-transfer` | ✅ 60 tests passing |
+| End-to-end demo with the **real** crypto service | ✅ honest → `VERIFIED`, Eve → `REJECTED`, attacks refused |
 | ML-KEM | ➖ not part of the current design (see [SECURITY_MODEL.md](docs/SECURITY_MODEL.md)) |
-| End-to-end demo | 🟡 runs with the **mock** crypto service (`MOCK_CRYPTO=1`). Real BB84 pending |
 | Benchmarks | ⏳ Phase 4 |
 
 ---
@@ -115,7 +118,7 @@ End-to-end flow:
 4. OrgA signs a canonical **audit manifest** (hashes, QBER, status). There is no plaintext and there are no keys in it.
 5. The client submits the manifest + signature. Chaincode on **both** peers verifies the signature against the ledger key and records `VERIFIED` or `REJECTED`.
 
-Sequence diagrams for authentication, BB84, document exchange and audit recording: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Sequence diagrams for authentication, BB84, document exchange and audit recording: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Which file does which cryptographic job: [docs/ARCHITECTURE.md §7](docs/ARCHITECTURE.md#7-where-the-cryptography-lives-file-map).
 
 ## 5. ML-DSA (post-quantum signatures)
 
@@ -172,6 +175,7 @@ qfabric/
 │   ├── api/              main, routes, schemas, services (FastAPI)
 │   ├── scripts/          demo_bb84, demo_mldsa, demo_secure_transfer
 │   ├── tests/            test_bb84, test_eavesdropping, test_mldsa, test_encryption, test_integration
+│   ├── third_party/qiskit/   Qiskit 2.6.1 source, vendored. BB84 runs on Qiskit built from here
 │   └── Dockerfile  requirements.txt  pytest.ini  .env.example
 ├── blockchain/           Dev 1: Go
 │   ├── go.mod            client + integration + tests module
@@ -203,12 +207,13 @@ Shared contract changes need both approvals: [CONTRIBUTING.md](CONTRIBUTING.md).
 | Tool | Version |
 |---|---|
 | Python | 3.12 recommended (3.11–3.13) |
+| Rust (cargo) | stable, via https://rustup.rs. Builds Qiskit from `quantum-pqc/third_party/qiskit` |
 | liboqs | 0.16.x (or use the Docker image) |
 | Go | 1.25+ |
 | Docker + Compose v2 | recent. Required for Fabric |
 | git, curl, jq | any recent |
 
-Pinned: Fabric 2.5.16, Fabric CA 1.5.22, Qiskit 2.x, Qiskit Aer 0.17–0.18, liboqs-python 0.16, fabric-contract-api-go v2.2.2, fabric-gateway v1.12.1, CIRCL v1.6.5.
+Pinned: Fabric 2.5.16, Fabric CA 1.5.22, Qiskit 2.6.1 (built from the vendored source), Qiskit Aer 0.17–0.18, liboqs-python 0.16, fabric-contract-api-go v2.2.2, fabric-gateway v1.12.1, CIRCL v1.6.5.
 
 ## 12. Environment setup
 
@@ -227,7 +232,8 @@ This copies `.env.example` → `.env` (root, `quantum-pqc/`, `blockchain/`). Ful
 cd quantum-pqc && source .venv/bin/activate
 pytest                                      # stubs reported as "skipped: not implemented yet"
 uvicorn api.main:app --reload --port 8000   # OpenAPI docs: http://localhost:8000/docs
-python -m scripts.demo_bb84                 # once BB84 is implemented
+python -m scripts.demo_bb84 --noise 0.02    # BB84 with/without Eve
+python -m scripts.demo_mldsa                # needs liboqs
 ```
 
 Or in Docker (builds liboqs 0.16.0):
@@ -256,14 +262,16 @@ cd blockchain
 ## 16. Running the integrated demo
 
 ```bash
-MOCK_CRYPTO=1 ./scripts/run-demo.sh     # works today: mock crypto service + live Fabric
-./scripts/run-demo.sh                   # real crypto service (after quantum-pqc is implemented)
+./scripts/run-demo.sh                   # real crypto service in Docker + live Fabric
+MOCK_CRYPTO=1 ./scripts/run-demo.sh     # Go mock instead (no Qiskit/liboqs needed)
 SKIP_INFRA=1 ./scripts/run-demo.sh      # reuse an already running network and crypto service
 ```
 
 Scenarios: register the OrgA and OrgB keys, then an honest transfer (`VERIFIED`), then an eavesdropped transfer (`REJECTED`, `QBER_EXCEEDS_THRESHOLD`), then the audit history, independent re-verification, and the replay/tamper/wrong-MSP attacks (all refused).
 
-The mock service produces real ML-DSA-65 signatures and real AES-256-GCM ciphertext, but its BB84 numbers are simulated statistics, not Qiskit runs.
+The mock service produces real ML-DSA-65 signatures and real AES-256-GCM ciphertext, but its BB84 numbers are simulated statistics, not Qiskit runs. Use the real service for anything you present.
+
+Client knobs for live scenarios: `transfer -noise 0.05 -qubits 4096`, `transfer -eve -intercept 0.3`.
 
 ## 17. Benchmarking
 

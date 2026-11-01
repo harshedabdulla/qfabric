@@ -81,3 +81,6 @@ Malformed, replayed or unauthenticated submissions error out and are not recorde
 7. **`/mldsa/sign` is a signing oracle.** Demo only. Disable it in any shared environment.
 8. **In-memory sessions.** A service restart loses BB84 sessions, which is intentional for a demo.
 9. **Timestamps.** The manifest `timestamp` is the sender's claim. The ledger's `recordedAt` (transaction timestamp) is the authoritative time.
+10. **Simulation details.** Photons are batched as 64 independent qubits per circuit on Aer's exact stabilizer simulator. Channel noise is a Pauli channel. Eve's intercept-resend is a real mid-circuit measurement.
+11. **Transcript authentication happens once, at the end.** Both orgs sign the whole classical transcript before the key is accepted, rather than signing each message as it goes. Tampering is still detected before any key is used, but an active attacker can force an abort (denial of service), as in any QKD system.
+12. **Cascade leakage accounting** counts every parity bit and each 64-bit confirmation tag as leaked. This is conservative but asymptotic (see item 3).
