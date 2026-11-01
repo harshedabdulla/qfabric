@@ -31,7 +31,7 @@ def test_health():
     body = r.json()
     assert body["status"] in {"ok", "degraded"}
     assert set(body["components"]) == {"qiskit", "qiskitAer", "liboqs"}
-    assert body["versions"]["qiskitSource"] in {"quantum-pqc/third_party/qiskit", "site-packages"}
+    assert body["versions"]["qiskitSource"].startswith(("quantum-pqc/third_party/qiskit", "site-packages"))
 
 
 def test_sample_request_matches_schema(sample_request):

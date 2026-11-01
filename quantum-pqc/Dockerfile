@@ -33,7 +33,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     OQS_INSTALL_PATH=/opt/liboqs \
     LD_LIBRARY_PATH=/opt/liboqs/lib \
-    QFABRIC_KEYSTORE_DIR=/data/keystore
+    QFABRIC_KEYSTORE_DIR=/data/keystore \
+    QFABRIC_QISKIT_SOURCE="quantum-pqc/third_party/qiskit (wheel built in image)"
 COPY --from=liboqs /opt/liboqs /opt/liboqs
 COPY --from=qiskit /wheels /wheels
 WORKDIR /app

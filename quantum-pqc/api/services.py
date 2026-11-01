@@ -113,8 +113,11 @@ def component_versions() -> dict[str, str]:
     spec = importlib.util.find_spec("qiskit")
     if spec and spec.origin:
         origin = Path(spec.origin).resolve()
-        vendored = "third_party" in origin.parts
-        versions["qiskitSource"] = "quantum-pqc/third_party/qiskit" if vendored else "site-packages"
+        if "third_party" in origin.parts:
+            versions["qiskitSource"] = "quantum-pqc/third_party/qiskit"
+        else:
+            # The Docker image builds a wheel from third_party/qiskit and sets this.
+            versions["qiskitSource"] = os.getenv("QFABRIC_QISKIT_SOURCE", "site-packages")
     return versions
 
 
