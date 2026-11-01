@@ -8,11 +8,25 @@ This module runs a Hyperledger Fabric 2.5 network with two organizations, the `q
 
 | Component | Status |
 |---|---|
-| Network scripts (fetch pinned Fabric 2.5.16, up, channel, deploy, down) | ✅ written, not yet run end to end |
-| Chaincode: data model, canonical manifest, validation, policy, ML-DSA verify (CIRCL) | ✅ unit-tested against the shared vector |
-| Chaincode: `RegisterOrganization`, `GetOrganization`, `RecordSecureTransaction`, `GetTransaction`, `GetAllTransactions`, `VerifyTransactionRecord` | ⏳ stubs with step-by-step TODOs |
-| Client: gateway connection, chaincode wrappers, crypto API client, CLI | ✅ compiles. Untested against a live network |
+| Network scripts (fetch pinned Fabric 2.5.16, up, channel, deploy, upgrade) | ✅ run on the live test network |
+| Chaincode: all six functions, ML-DSA-65 verification (CIRCL), policy, replay guard, one-org-per-MSP | ✅ unit + contract tests. Deployed as v1.1 |
+| Client: gateway connection, chaincode wrappers, crypto API client, CLI | ✅ end to end against the live network |
+| Live attack scenarios (replay, tamper, wrong MSP) | ✅ all refused, ledger unchanged (`scripts/attack-scenarios.sh`) |
 | Contract test (samples ↔ Go structs) | ✅ passing |
+| Real crypto service (BB84 / ML-DSA / AES in `quantum-pqc/`) | ⏳ not implemented yet. Use `tools/mockcrypto` until it is |
+
+## Mock crypto service (development only)
+
+`tools/mockcrypto` stands in for the Quantum/PQC service so the full client → Gateway → chaincode path can run today.
+
+- **Real:** ML-DSA-65 signatures (CIRCL), the canonical manifest, HKDF + gzip + AES-256-GCM, and every hash.
+- **Not real:** BB84. QBER comes from a simple random-error model (about 2% honest, about 2% + 25% × interception rate with Eve). **No quantum simulation runs, so never present mock numbers as BB84 results.**
+- Keys come from a seed derived from the org ID (test-only), so they survive restarts.
+- Its responses validate against `quantum-pqc/api/schemas.py`. To switch to the real service, point `QFABRIC_CRYPTO_API_URL` at it.
+
+```bash
+go run ./tools/mockcrypto -addr 127.0.0.1:8000
+```
 
 ## Layout
 
@@ -26,14 +40,18 @@ blockchain/
 │   ├── organization.go       Organization model, RegisterOrganization, GetOrganization
 │   ├── transaction.go        AuditManifest (canonical bytes, Validate, PolicyViolations), AuditRecord
 │   ├── audit.go              AuditContract functions, ML-DSA-65 verification (CIRCL)
-│   └── audit_test.go         vector, tamper, validation and policy tests
+│   ├── audit_test.go         vector, tamper, validation and policy tests
+│   ├── contract_test.go      contract-level tests (register, record, replay, MSP, rejection, re-verify)
+│   └── fakes_test.go         in-memory stub and client identity for tests
 ├── client/                   CLI: health | register | transfer | get | list | verify
 │   ├── config.go             env config, OrgA/OrgB → Org1MSP/Org2MSP mapping
 │   ├── gateway.go            Fabric Gateway connection (X.509 identity, TLS)
 │   ├── transaction.go        chaincode call wrappers
 │   └── main.go
 ├── integration/              crypto-service HTTP client + JSON contract structs
-├── scripts/                  common.sh, start-network.sh, create-channel.sh, deploy-chaincode.sh, stop-network.sh
+├── tools/mockcrypto/         DEV-ONLY stand-in for the crypto service (real ML-DSA/AES, simulated BB84 numbers)
+├── scripts/                  common.sh, start-network.sh, create-channel.sh, deploy-chaincode.sh,
+│                             stop-network.sh, attack-scenarios.sh
 └── tests/integration_test.go contract test (offline) + E2E (QFABRIC_E2E=1)
 ```
 
@@ -72,6 +90,8 @@ QFABRIC_ORG=OrgA go run ./client transfer -to OrgB -file ../README.md -tx qfabri
 QFABRIC_ORG=OrgA go run ./client transfer -to OrgB -file ../README.md -eve -tx qfabric-tx-002
 go run ./client list
 go run ./client verify qfabric-tx-001
+
+./scripts/attack-scenarios.sh qfabric-tx-001   # replay / tamper / wrong-MSP must all be refused
 ```
 
 ### Testing the chaincode without the crypto service

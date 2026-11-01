@@ -128,13 +128,3 @@ func TestPolicyViolations(t *testing.T) {
 		t.Error("threshold above ledger policy must be rejected")
 	}
 }
-
-// TODO(blockchain): once RegisterOrganization / RecordSecureTransaction are
-// implemented, add contract-level tests with a mocked
-// TransactionContextInterface (e.g. counterfeiter mocks, as in
-// fabric-samples asset-transfer-basic/chaincode-go/chaincode/mocks) covering:
-//   - register + get organization; duplicate registration refused
-//   - record VERIFIED transfer from the test vector
-//   - replayed sessionId refused
-//   - wrong submitter MSP refused
-//   - VerifyTransactionRecord consistent for stored records

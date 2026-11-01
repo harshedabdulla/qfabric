@@ -10,6 +10,10 @@
 | HKDF-SHA-256 | KDF | Hash security | Bind key to session and direction |
 | ECDSA (Fabric MSP) | Classical (**quantum-vulnerable**) | ECDLP | Fabric membership, endorsement, block signatures |
 
+### Why there is no ML-KEM (FIPS 203) in v1
+
+ML-KEM is a post-quantum **key-encapsulation** mechanism. In QFabric, BB84 already fills the key-establishment role, so v1 does not use ML-KEM. A natural extension, worth doing if time allows, is a **hybrid key**: run ML-KEM-768 between the orgs as well, and derive the AES key with `HKDF(IKM = BB84_secret || ML-KEM_shared_secret, ...)`. The derived key then stays secure if either mechanism holds. That matters because BB84 here is only simulated. The change would add `mlkem` fields to the manifest (a `V2` header) and is a contract change.
+
 ## 2. Assets
 
 1. Confidential documents exchanged between OrgA and OrgB.
