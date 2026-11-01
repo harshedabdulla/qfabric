@@ -20,6 +20,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 API="${QFABRIC_CRYPTO_API_URL:-http://localhost:8000/api/v1}"
 DOC="${1:-}"
+if [ -n "$DOC" ]; then
+  [ -f "$DOC" ] || { echo "document not found: $DOC" >&2; exit 1; }
+  DOC="$(cd "$(dirname "$DOC")" && pwd)/$(basename "$DOC")"   # script changes directory later
+fi
 MOCK_PID=""
 step() { printf '\n\033[1;35m==> %s\033[0m\n' "$*"; }
 

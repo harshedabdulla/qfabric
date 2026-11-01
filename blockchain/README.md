@@ -73,9 +73,9 @@ go test ./...                               # contract tests
 (cd chaincode/qfabric-audit && go test ./...)
 
 ./scripts/start-network.sh                  # first run downloads Fabric 2.5.16 samples, binaries, images
-./scripts/deploy-chaincode.sh               # v1.0, sequence 1 (runs unit tests first)
+./scripts/deploy-chaincode.sh               # v1.0, sequence 1 (runs unit tests first); no-op if deployed
 # upgrade after changes:
-./scripts/deploy-chaincode.sh 1.1 2
+./scripts/deploy-chaincode.sh upgrade
 
 ./scripts/stop-network.sh                   # tear down (destroys ledger)
 ```
