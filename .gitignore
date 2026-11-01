@@ -62,3 +62,10 @@ benchmarks/**/results/
 .idea/
 .vscode/
 *.swp
+
+# ---------- Vendored Qiskit build outputs & local liboqs ----------
+quantum-pqc/third_party/qiskit/target/
+quantum-pqc/third_party/qiskit/build/
+quantum-pqc/third_party/qiskit/*.egg-info/
+quantum-pqc/third_party/qiskit/qiskit/**/*.so
+quantum-pqc/.oqs/
